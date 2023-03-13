@@ -3,6 +3,7 @@
 
 # ===== MODULES ===== #
 import os
+import pdb
 import numpy as np
 import matplotlib.pyplot as plt
 import ode2d_models as model
@@ -13,6 +14,8 @@ import ode2d_pplane as ode2d
 import ode545_functions as functions
 
 import pysindy as ps
+from pysindy.optimizers import STLSQ
+from pysindy.feature_library.polynomial_library import PolynomialLibrary
 
 cwd = os.getcwd()
 
@@ -39,7 +42,7 @@ opt_plot = 2                                                    # plotting optio
 savedir = f"f{fI_lab}_tend={tmesh[0]}_dt={tmesh[1]}"            # name subfolder created for current run
 savelabel = f"Iext={Iext}"                                      # string with which each file name in the subfolder starts
 title = ""                                                      # title of the plots describing the case run (will be followed by some details about each plot specifically)
-
+plot = False
 
 # ===== OUTPUT ===== #
 
@@ -65,33 +68,36 @@ else:
 
 ### algorithm
 
-Xtraj, T = functions.trajectories(fmodel(fI), X0, tmesh, method="RK4")
+print("Obtaining trajectories...")
+Xtraj, T = functions.trajectories(fmodel(fI), X0, tmesh, method="RK4") # shape = (batch, num_var, time_steps)
 dt = T[1] - T[0]
 # Xtraj = Xtraj.T
 
 # initialization summary plot
-n = len(Xtraj[0])                                # dimensionality of the ODE
-print(n)
-nt = len(T)
+if plot:
+    n = len(Xtraj[0])                                # dimensionality of the ODE
+    print(n)
+    nt = len(T)
 
-Idata = np.zeros((1,nt))
-for i in range(nt):
-    Idata[0,i] = fI(T[i])
-print(Idata)
+    Idata = np.zeros((1,nt))
+    for i in range(nt):
+        Idata[0,i] = fI(T[i])
+    print(Idata)
 
-models = []
+    models = []
 
-for i in range(len(X0)):
-    height_ratios = [2]+[1 for i in range(n+1)]
-    print(height_ratios)
-    fig, axs = plt.subplots(n+2, 1, figsize=(12, 12), height_ratios = height_ratios) #, gridspec_kw={'height_ratios': [8, 4, 4]})
+    for i in range(len(X0)):
+        height_ratios = [2]+[1 for i in range(n+1)]
+        print(height_ratios)
+        fig, axs = plt.subplots(n+2, 1, figsize=(12, 12)) #, gridspec_kw={'height_ratios': [8, 4, 4]})
+        # removed , height_ratios = height_ratios
 
-    functions.plotPhasePlane(axs[0], fmodel(fI), xmesh, ymesh, Xtraj[i])
-    functions.plotTimeSeries(axs[1:n+1], Xtraj[i], T)
-    functions.plotTimeSeries(axs[n+1], Idata, T, Xlims = [-0.1*Iext, 1.1*Iext])
+        functions.plotPhasePlane(axs[0], fmodel(fI), xmesh, ymesh, Xtraj[i])
+        functions.plotTimeSeries(axs[1:n+1], Xtraj[i], T)
+        functions.plotTimeSeries(axs[n+1], Idata, T, Xlims = [-0.1*Iext, 1.1*Iext])
 
-    fig.savefig(savepath+"/analysis_X0="+str(X0[i]).replace(".","")+"-FHN-A-1.png", bbox_inches="tight")
-    plt.close()
+        fig.savefig(savepath+"/analysis_X0="+str(X0[i]).replace(".","")+"-FHN-A-1.png", bbox_inches="tight")
+        plt.close()
 
 
 ####################
@@ -99,7 +105,10 @@ for i in range(len(X0)):
 ####################
 
 # train model for first X0
-model_ps = ps.SINDy()
+print("Start Pysindy fitting...")
+optimizer = STLSQ(threshold=0.005, alpha=0.5)
+library = PolynomialLibrary(degree=3)
+model_ps = ps.SINDy(optimizer=optimizer, feature_library=library)
 model_ps.fit(Xtraj[0].T, t=dt)
 model_ps.print()
 

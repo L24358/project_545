@@ -1,0 +1,3 @@
+[submodule "pysindy"]
+	path = pysindy
+	url = https://github.com/L24358/pysindy.git
